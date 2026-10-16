@@ -32,6 +32,7 @@ import { OutdoorActivityPlanner } from './components/OutdoorActivityPlanner';
 import { HistoricalTrendChart } from './components/HistoricalTrendChart';
 import { AlertSettingsModal } from './components/AlertSettingsModal';
 import { NotificationDrawer } from './components/NotificationDrawer';
+import { WeatherDispersalBanner } from './components/WeatherDispersalBanner';
 import {
   ShieldAlert,
   Activity,
@@ -274,6 +275,9 @@ export default function App() {
             onDismiss={() => setBannerDismissed(true)}
           />
         )}
+
+        {/* NEA 2-Hour Weather & Haze Washout Forecast */}
+        <WeatherDispersalBanner summary={airData.weatherSummary} />
 
         {/* Tab 1: Overview (Hero, Metric Cards, Interactive Map, Advisory, Trend) */}
         {activeTab === 'overview' && (

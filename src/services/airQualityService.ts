@@ -5,7 +5,8 @@ import {
   AlertConfig,
   PushNotificationRecord,
   ScenarioPreset,
-  HotspotSurveillance
+  HotspotSurveillance,
+  DatamallWeatherSummary
 } from '../types/airQuality';
 import {
   getPsiBand,
@@ -22,6 +23,7 @@ export interface DataFetchResult {
   source: 'live_api' | 'simulated';
   hotspots: HotspotSurveillance;
   history: HourlyHistoryPoint[];
+  weatherSummary?: DatamallWeatherSummary;
 }
 
 const REGION_KEYS: RegionId[] = ['north', 'south', 'east', 'west', 'central', 'national'];
@@ -196,10 +198,76 @@ export const createPresetData = (preset: ScenarioPreset): DataFetchResult => {
 };
 
 /**
- * Fetches live PSI data from Singapore Government Open Data API:
- * https://api.data.gov.sg/v1/environment/psi
+ * Fetches live PSI and 2-hr weather forecast data from the /api/hazePSI serverless endpoint,
+ * with fallback to the direct NEA open data API: https://api.data.gov.sg/v1/environment/psi
  */
 export const fetchLivePsiData = async (): Promise<DataFetchResult> => {
+  // First try the local serverless endpoint which merges PSI and 2-hr forecast from NEA Datamall
+  try {
+    const serverlessRes = await fetch('/api/hazePSI', {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' }
+    });
+
+    if (serverlessRes.ok) {
+      const serverlessJson = await serverlessRes.json();
+      if (serverlessJson?.regions) {
+        const regionsObj = {} as Record<RegionId, RegionAirQualityData>;
+
+        REGION_KEYS.forEach(reg => {
+          const raw = serverlessJson.regions[reg];
+          const psi24h = raw?.psi24h ?? 45;
+          const pm25_1h = raw?.pm25_1h ?? 16;
+          const psiBand = getPsiBand(psi24h);
+          const pm25B = getPm25Band(pm25_1h);
+
+          regionsObj[reg] = {
+            region: reg,
+            name: REGIONS_METADATA[reg].name,
+            readings: {
+              psi24h,
+              pm25_1h,
+              pm25_24h: raw?.pm25_24h ?? 14,
+              pm10_24h: raw?.pm10_24h ?? 22,
+              o3_8h: raw?.o3_8h ?? 18,
+              no2_1h: raw?.no2_1h ?? 16,
+              so2_24h: raw?.so2_24h ?? 6,
+              co_8h: raw?.co_8h ?? 0.4
+            },
+            band: psiBand,
+            pm25Band: pm25B.id,
+            trend: psi24h > 100 ? 'deteriorating' : 'stable',
+            delta24h: 0
+          };
+        });
+
+        const history = generate24hHistory(regionsObj);
+        const lastUpdated = serverlessJson.lastUpdated;
+        const formattedTime = lastUpdated
+          ? new Date(lastUpdated).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', hour12: false }) + ' SGT'
+          : 'Just now';
+
+        return {
+          regions: regionsObj,
+          national: regionsObj.national || regionsObj.central,
+          timestamp: formattedTime,
+          source: 'live_api',
+          hotspots: INITIAL_HOTSPOT_SURVEILLANCE,
+          history,
+          weatherSummary: {
+            validPeriodText: serverlessJson.validPeriod?.text || 'Next 2 Hours',
+            rainWashoutExpected: serverlessJson.summary?.rainWashoutExpected ?? false,
+            rainWashoutSummary: serverlessJson.summary?.rainWashoutSummary || '',
+            forecasts: serverlessJson.twoHourForecasts || []
+          }
+        };
+      }
+    }
+  } catch (serverlessErr) {
+    console.info('Serverless /api/hazePSI not directly reachable from client, trying direct NEA open data:', serverlessErr);
+  }
+
+  // Fallback to direct NEA public API
   try {
     const res = await fetch('https://api.data.gov.sg/v1/environment/psi', {
       method: 'GET',
@@ -223,7 +291,6 @@ export const fetchLivePsiData = async (): Promise<DataFetchResult> => {
     const regionsObj = {} as Record<RegionId, RegionAirQualityData>;
 
     REGION_KEYS.forEach(reg => {
-      // data.gov.sg returns keys: 'west', 'national', 'east', 'central', 'south', 'north'
       const psi24h = Math.round(readings.psi_twenty_four_hourly?.[reg] ?? 45);
       const pm25_1h = Math.round(readings.pm25_one_hourly?.[reg] ?? 16);
       const pm25_24h = Math.round(readings.pm25_twenty_four_hourly?.[reg] ?? 14);

@@ -102,4 +102,21 @@ export interface ActivityLocation {
   recommendation: string;
 }
 
+export interface AreaWeatherForecast {
+  area: string;
+  forecast: string;
+  coordinates?: {
+    latitude: number;
+    longitude: number;
+  };
+}
+
+export interface DatamallWeatherSummary {
+  validPeriodText: string;
+  rainWashoutExpected: boolean;
+  rainWashoutSummary: string;
+  forecasts: AreaWeatherForecast[];
+}
+
 export type ScenarioPreset = 'live' | 'good' | 'moderate' | 'unhealthy_haze' | 'severe_emergency' | 'rapid_spike';
+
