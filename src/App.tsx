@@ -40,7 +40,8 @@ import {
   MapPin,
   Calendar,
   Info,
-  ExternalLink
+  ExternalLink,
+  FileDown
 } from 'lucide-react';
 
 export default function App() {
@@ -414,12 +415,19 @@ export default function App() {
             <span>Data sourced via National Environment Agency (NEA) & data.gov.sg</span>
           </div>
 
-          <div className="flex items-center gap-4 text-slate-400">
+          <div className="flex items-center gap-4 text-slate-400 flex-wrap">
             <span>MOH Health Advisory Standards</span>
             <span>·</span>
-            <span>WMO / ASEAN Specialized Meteorological Centre</span>
-            <span>·</span>
             <span>Serverless Backend Ready</span>
+            <span>·</span>
+            <a
+              href="/SG_AirAlert_Prompts_16Oct2026.docx"
+              download="SG_AirAlert_Prompts_16Oct2026.docx"
+              className="inline-flex items-center gap-1.5 text-cyan-400 hover:text-cyan-300 font-semibold transition-colors"
+            >
+              <FileDown className="w-3.5 h-3.5" />
+              <span>Download Word Doc (.docx)</span>
+            </a>
           </div>
         </div>
       </footer>
